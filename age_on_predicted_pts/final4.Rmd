@@ -1,0 +1,589 @@
+---
+title: "Effect of Age in Predicting NBA Player's Performance in the 2017-2018 season"
+author: "Nicolas Escobar"
+output: pdf_document
+---
+
+
+# Abstract
+
+
+Suppose you are the manager of an NBA team at the end of the 2016-2017 season. Imagine you are interested in adding one player to your team, but the budgetary and contractual situation is such that you can only offer a one-year contract to whatever player you decide to sign. Furthermore, let us say that your coach has diagnosed that your team does not score enough, so that the one thing you care about is how many points your new recruit will provide in the 2017-2018 season. Now, your scouts have come to you with two prospects, who share similar performance measures. The only real difference between them is that one of them is younger than the other. The question this paper tries to address is: which player should you sign?
+
+We argue that you should pick the younger player. In order to do that, we will implement a linear model which we call `m.q`, and explore the role age plays on it. The response of the model is a transformation of `PTS2017` (the number of points scored in the 2017-2018 season). The predictors include `PTS2016` (the number of points scored in the 2016-2017 season), `Age` and a series of performance measures. The model is determined by the following formula: 
+
+`I(sqrt(PTS2017)) ~ yeo.johnson(PTS2016, 0.25) + yeo.johnson(Age, -1) + yeo.johnson(G, 1.25) + yeo.johnson(WS.48, 0) + yeo.johnson(DRB., 0) + yeo.johnson(X3P, 0.33) + yeo.johnson(X3PA, 0.5) + yeo.johnson(X2P., 1) + yeo.johnson(FG., 0) + I(yeo.johnson(PTS2016, 0.25)^2)`
+       
+The main conclusion we draw from the model is that, all other factors being held equal, there is a steady decrease in `PTS2017` with `Age`. Other insights that we derive from it are negative effects of `DRB.`, `G` and `FG.`, the last two perhaps being the most surprising. 
+
+The results of the model are robust. The effects just described are significant. Moreover, we repeated the implementation of the model after removing the most influential point and got very similar results. 
+
+
+<!-- We argue that the answer to the question depends on how much you know about the players. In order to illustrate this, we will construct two linear models that encode how much information is available in a couple of scenarios and derive respective conclusions about one of them.  -->
+
+<!-- In the first scenario, the information about the players is limited to `Age`, `Tm2016` and `Pos2016`. The model we construct is  -->
+
+<!-- `basicPower(PTS2017, 1/3) ~ Age*Pos2016+I(Age^2)` -->
+
+<!-- This model prefers the 25 year old over the 23 year old one. In fact, it predicts that player's productivity achieves a maximum around 27 years old.  -->
+
+<!-- In the second scenario, we have all of the information in the database available for us to make a decision and we suppose that both players have similar metrics other than their age. We narrow down the useful factors and we perform a transformation to arrive to the model -->
+
+<!-- `basicPower(PTS2017, 1/2)~ basicPower(PTS2016, 1/2) + Age + G + WS.48 + DRB. + X2P. + FG.` -->
+
+<!-- The model prefers the 23 year old to the 25 year old. Moreover, it predicts that the player's productivity decreases steadily with `Age`.  -->
+
+
+
+
+
+
+
+# Summary of Methods
+
+We arrived to model `m.q` after a sequence of steps.
+
+First, we apply the `step` method in the forward direction to narrow down the list of predictors that we will use. The lower formula included just `PTS2016` and `Age`. The first one is strongly correlated to the response. The second one is the object of our study. The upper formula included all of the regressors in the database. The result of this process is a model we call `m.fwd`. 
+
+The problem with `m.fwd` is that it does not satisfy the hypothesis of linear modeling. The effects plot does not look like the null plot. So, we transform the regressors using the suggestions from the `powerTransform` routine. Then, we use `boxCox` to find a suitable transformation for the response. The result is a model we call `m.fwd.tr.2`.
+
+A couple of things should be noted here. First, we have chosen to implement model selection first and then use transformations. Other statisticians might have implemented transformations first and then apply model selection. The problem with this alternative approach is that it would have suggested to implement complicated transformations to almost all of the more than 50 predictors present in the database. We feel this is an overkill. Second, we use the Yeo-Johnson family of transformations, since some of the predictors admit negative values (specifically `WS.48`) and some have observations where the value is exactly 0, like `X3P`. 
+
+This model is still not satisfactory, as it exhibits some curvature. We try a couple of things to fix this. First, we try to include an interaction term between the predictors `PTS2016` and `Pos2016`. After doing an `anova` analysis, we conclude that this term is not worth considering. Second, we include a "quadratic" term on the predictor `PTS2016`. This does seem to solve the curvature issues. This way, we have arrived to our final model, `m.q`. 
+
+To test how robust our results are, we used influence analysis. We did not find evidence of outliers. Moreover, even the most influential point has a modest Cook's distance. In any case, we removed this most influential case from the database and we repeated the implementation of `m.q` in this restricted database. The results are almost exactly the same. We conclude that we can be confident about the robustness of our results. 
+
+Lastly, we analyze the results of the model. An effects plot is drawn, showing the steady decrease in `sqrt(PTS2017)` with `Age`, which leads to our conclusion that in the scenario described in our research question, the younger player should be preferred.  
+
+<!-- To arrive to the first model, we follow a sequence of steps. We start with the simple model  -->
+
+<!-- `PTS2017 ~ Age + Tm2016 + Pos2016` -->
+
+<!-- Conventional wisdom has it that there is a peak in player's performance at a certain age. Such a peak would be a quadratic behavior, so we include the regressor `Age^2`.  -->
+
+<!-- However, the residuals of the resulting model do not match a null plot. So, we transform the response according to the results of the `boxCox` method. We arrive at the model  -->
+
+<!-- `basicPower(PTS2017, 1/3) ~ Age + I(Age^2) + Tm2016 + Pos2016` -->
+
+<!-- At this point, we perform an Anova analysis and decide to include an interaction and to drop the `Tm2016` regressor, to get  -->
+
+<!-- `basicPower(PTS2017, 1/3) ~ Age*Pos2016+I(Age^2)` -->
+
+<!-- For reference, we compare this model with the more complicated  -->
+
+<!-- `basicPower(PTS2017, 1/3) ~ Age*Pos2016*Tm2016` -->
+
+<!-- and find that our model has a lower AIC.  -->
+
+<!-- Additionally, we verify the assumptions of linear modeling by plotting the residuals of the model, performing a non-constant variance test and Tukey's test for curvature. Furthermore, we perform influence analysis and find that no points have Cook's distance comparable to 1, making our results robust. Finally, to get insights from our model we use the `predict` routine to get estimates for `PTS2017` for both players. We also draw an effects plot toi observe the peaking effect.  -->
+
+
+
+<!-- For our second model, we have all of the regressors in our database available, but we need to narrow down which ones are really useful.  -->
+<!-- we start with the elementary model  -->
+
+<!-- `PTS2017 ~ PTS2016 + Age` -->
+
+<!-- From there, we use the `step` method in the forward direction to arrive to a model we call `m.fwd`. We apply the `boxCox` method to it to arrive to  -->
+
+<!-- `sqrt(PTS2017)~ sqrt(PTS2016) + Age + G + WS.48 + DRB. + X3P + X3PA + X2P. + FG. + Pos2016` -->
+
+<!-- We consider adding interactions to the model, but anova analysis prevents us from doing it. We also perform anova analysis on this model, which suggests dropping some of the regressors. One last application of this kind of technique prevents us from adding a quadratic term on `Age`. We end up with our final model: -->
+
+<!-- `sqrt(PTS2017)~ sqrt(PTS2016) + Age + G + WS.48 + DRB. + X2P. + FG.` -->
+
+<!-- We validate the hypothesis of linear modeling in the same way as we did for our first model.  -->
+
+<!-- To verify the robustness of our results, we perform influence analysis and we identify a point with comparatively high Cook's distance. We perform the linear regression on the database without said point and we observe similar results.  -->
+
+<!-- Finally, to answer our research question, we draw an effects plot of the model and interpret the `Age` coefficient.  -->
+
+
+
+# Data Analysis
+
+
+
+<!-- The question is not trivial. Perhaps you could be tempted by the following argument. Conventional wisdom has it that players achieve a peak in their careers at some point around 26 years old (the age of the current MVP of the league, Giannis Antetokounmpo). So, the second player is closest to his peak and should score more than the first one. After all, the latter player is more experienced, the former still has some things to learn. The extra experience also makes the second player more reliable, the first one is more likely to encounter some new obstacle that affects his output.  -->
+
+<!-- On the other hand, one could argue as follows. If the two players share similar performance measures, the first player must be more promising, since he already performs at the same level as his more experienced peer. Also, the 23 year old has more room for improvement. Both things would point to a higher ceiling for the former rather than the latter player and perhaps a higher projection for the 2017 season.  -->
+
+We will be working with a database that contains around 50 different measurements of performance obtained in the 2016-2017 season for 560 players of the NBA. A detailed explanation of each of these measurements, as well as the abbreviations used for them, can be found in https://www.basketball-reference.com/about/glossary.html. It includes some basic statistics like points scored (`PTS2016`), team (`Tm2016`) and position (`Pos2016`). But it also contains some advanced metrics such as Value over Replacement Player (`VORP`), Win Shares (`WS`) and Box Plus Minus (`BPM`). These measurements will constitute our predictors. The database also has the number of points scored in the 2017-2018 season (`PTS2017`), which as was mentioned will be our response. A small amount of data wrangling is in order. We have discarded players that did not score in either of the seasons under consideration, as this probably corresponds to rookies of the 2017-2018 season or players that retired in the 2016-2017 one, none of which should be included in the analysis. 
+
+
+
+```{r, message =FALSE}
+library(alr4)
+library(dplyr)
+library(VGAM)
+stats = read.csv("stats_2017_2016.csv")
+stats$Tm2016 = as.factor(stats$Tm2016)
+stats$Pos2016 = as.factor(stats$Pos2016)
+stats = stats %>% filter(PTS2016 > 0 & PTS2017> 0)
+stats = na.omit(stats)
+```
+
+ 
+
+
+
+
+
+<!-- ## First model  -->
+
+<!-- Suppose initially that you have very little information about your prospects. The very least you probably know about them is their age, their previous team and the position they play. The situation is encoded in the following model: -->
+
+
+<!-- ```{r} -->
+<!-- m1 = lm(PTS2017 ~ Age + I(Age^2) + Tm2016 + Pos2016, stats) -->
+<!-- ``` -->
+
+<!-- The residuals of such a model do not correspond to a null plot, so we apply a transformation on the response: -->
+
+<!-- ```{r} -->
+<!-- boxCox(m1) -->
+<!-- ``` -->
+
+<!-- and reformulate the model as  -->
+
+<!-- ```{r} -->
+<!-- m1 = lm(basicPower(PTS2017, 1/3) ~ Age + I(Age^2) + Tm2016 + Pos2016, stats) -->
+<!-- ``` -->
+
+
+
+<!-- We now consider interactions. The most complicated model we could use is  -->
+
+<!-- ```{r} -->
+<!-- m.full = lm(basicPower(PTS2017, 1/3) ~ Age*Pos2016*Tm2016, stats) -->
+<!-- ``` -->
+
+<!-- For the record, an Anova analysis suggests keeping all of these terms: -->
+
+<!-- ```{r} -->
+<!-- Anova(m.full) -->
+<!-- ``` -->
+
+<!-- Since the term `Age:Pos2016:Tm2016` is significative, the marginality principle would indicate keeping all of the lower order terms.  -->
+<!-- The problem with this model is that it has too many regressors, especially because there are so many teams in the League. Its AIC is  -->
+
+<!-- ```{r} -->
+<!-- AIC(m.full) -->
+<!-- ``` -->
+
+<!-- We can do better than that by considering the simpler model: -->
+
+<!-- ```{r} -->
+<!-- m.red = lm(basicPower(PTS2017, 1/3) ~ Age*Pos2016+I(Age^2), stats) -->
+<!-- ``` -->
+
+<!-- An Anova analysis suggests that we should keep all the terms in this model: -->
+
+<!-- ```{r} -->
+<!-- Anova(m.red) -->
+<!-- ``` -->
+
+
+<!-- Moreover, it upholds the hypothesis of a linear model, as can be seen from its residual plot: -->
+
+<!-- ```{r} -->
+<!-- plot(m.red,1) -->
+<!-- ``` -->
+
+<!-- and the tests  -->
+
+<!-- ```{r} -->
+<!-- ncvTest(m.red) -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- residualPlots(m.red) -->
+<!-- ``` -->
+
+<!-- which do not find evidence of non-constant variance or curvature.  -->
+
+<!-- Moreover, the model has a lower AIC: -->
+
+<!-- ```{r} -->
+<!-- AIC(m.red) -->
+<!-- ``` -->
+<!-- Let us analyze the predictions of this model in order to address our research question. Narrowly speaking, suppose the two players have similar characteristics, for example: they are both shooting guards for the Indiana Pacers. Then, the model predicts a higher output from the 25 year old than from the 23 year old: -->
+
+<!-- ```{r} -->
+<!-- predict(m.red, data.frame(Age = c(23, 25), Pos2016 = "SG", Tm2016 = "IND"))^3 -->
+<!-- ``` -->
+
+<!-- More broadly, the model predicts the output of players to peak at around 27 years old: -->
+
+<!-- ```{r} -->
+<!-- plot(Effect("Age", m.red)) -->
+<!-- ``` -->
+
+<!-- It should be noted that the model exhibits no outliers and all points have a small Cook's distance, so the results are robust.  -->
+
+<!-- ```{r} -->
+<!-- influenceIndexPlot(m.red) -->
+<!-- ``` -->
+
+
+<!-- The one problem with this model is its very low coeffiecient of determination: -->
+
+<!-- ```{r} -->
+<!-- summary(m.red)$r.sq -->
+<!-- ``` -->
+
+
+
+
+<!-- Before we analyze the conclusions of the model, we check the hypothesis of linear modeling by looking at the residual plot -->
+
+<!-- ```{r} -->
+<!-- plot(m1, 1) -->
+<!-- ``` -->
+
+<!-- We observe no heteroskedasticity or curvature. -->
+
+
+<!-- Let us now analyze the predictions of this model. First, let us see an effects plot with respect to `Age`: -->
+
+<!-- ```{r} -->
+<!-- plot(Effect("Age", m1)) -->
+<!-- ``` -->
+
+<!-- We observe the existence of a peak around 26 years old.  -->
+
+<!-- It is clear from the plot that the 25 year old will be projected to score more than the 23 year old, but let us get specific predictions for both. Suppose, for comparison purposes, that both players are shooting guards for the Indiana Pacers and that their ages are as described above. Then the model would predict the following scoring outputs: -->
+
+<!-- ```{r} -->
+<!-- predict(m1, data.frame(Age = 23, Tm2016 = "IND", Pos2016 = "SG"), interval = "prediction")^3  -->
+<!-- predict(m1, data.frame(Age = 25, Tm2016 = "IND", Pos2016 = "SG"), interval = "prediction")^3  -->
+<!-- ``` -->
+
+<!-- It should be noted that this model has a very low coefficient of determination. After all, if you only know the age, team and position of a player, you can hardly expect very accurate predictions on the player's output.  -->
+
+<!-- ```{r} -->
+<!-- m1.a = lm(PTS2017 ~ Age*Pos2016*Tm2016 + I(Age^2), stats) -->
+
+<!-- Anova(m1.a) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- boxCox(m1.a) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- m1.a = lm(basicPower(PTS2017, 1/2) ~ Age*Pos2016*Tm2016, stats) -->
+<!-- summary(m1.a)$r.sq -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- plot(m1.a, 1) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- summary(m1.a)$r.sq -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- predict(m1.a, data.frame(Age = c(23, 25), Pos2016 = c("SG", "SG"), Tm2016 = c("IND", "IND")))^(3/2) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- ncvTest(m1.a, ~ Tm2016) -->
+<!-- ``` -->
+
+
+<!-- In contrast with the previous situation, suppose now that you have all the information in our database available to you and that you know that the two players have similar performance measures. Would that affect your choice of player? Let us construct a model that reflects the new information available.  -->
+
+
+<!-- We begin by narrowing down the set of predictors that we are going to use. It seems reasonable that at the very least, we should use `Age` and `PTS2016`. The former is the target of our study. The latter is highly correlated to our response.  To select the rest, we use the `step` routine in the forward direction to obtain the model `m.fwd`.  -->
+
+<!-- It should be noted that the hypothesis of linear modeling are not satisfied in `m.fwd`, as can be observed from its residual plot. -->
+
+As mentioned in the Summary of Methods, we first use `step` to narrow down the list of predictors. The upper formula contains all of the ones listed in the database. The lower formula has just `PTS2016` and `Age`. The output of `step` is saved in the model `m.fwd`. A plot of the residuals of `step` is then drawn. It shows significant deviation from the null plot, indicating that perhaps transformations are necessary. 
+
+
+```{r}
+upper.formula = PTS2017 ~ Tm2017 + Pos2017 + Pos2016 +
+  Age+Tm2016 + G+GS + MP + PER+TS. + X3PAr + FTr + 
+  ORB.+ DRB. + TRB. + AST. + STL. + BLK. + TOV. + 
+  USG. + OWS + DWS + WS + WS.48 + OBPM + DBPM + 
+  BPM + VORP + FG + FGA + FG. + X3P + X3PA + X3P. +
+  X2P + X2PA + X2P. + eFG. + FT + FTA + FT. + ORB + 
+  DRB + TRB+ AST + STL + BLK + TOV + PF + PTS2016
+
+lower.formula = PTS2017 ~ PTS2016 + Age 
+
+m.lower = lm(lower.formula, stats)
+
+m.fwd = step(m.lower, scope = upper.formula, 
+             direction = "forward", trace = 0)
+
+plot(m.fwd, 1)
+```
+
+
+
+
+<!-- ```{r} -->
+<!-- summary(m.fwd) -->
+<!-- ``` -->
+
+<!-- PTS2017 ~ PTS2016 + Age + G + WS.48 + DRB. + X3P +  -->
+<!--     X3PA + X2P. + FG. + Pos2016 -->
+
+To choose transformations that make the regressors be linearly related, we use the `powerTransform` method. Some of the values of `WS.48` are negative and some of the `X3P` ones are 0. There is no natural way to adjust these values to make them positive, so we use the Yeo-Johnson family of transformations as a parameter for `powerTransform`. We get a series of suggestions. We take them only approximately, as suggested by the textbook. By these we mean that we approximate the `lambda` parameter to the closer third or quarter. We implement these transformations of the predictors in the model `m.fwd.tr`. Then, we use the `boxCox` method on `m.fwd.tr` to select a transformation of the response. The model with all the transformations and the `Pos2016` regressor back (which we did not transform because it is a factor), is called `m.fwd.tr.2`. Finally, we draw a residual plot of `m.fwd.tr.2`, from which it is clear that it exhibits moderate curvature. 
+
+```{r}
+bc1 = powerTransform(cbind(PTS2016, Age, G, WS.48, DRB., X3P,  X3PA, X2P., FG.) ~1, 
+                     data = stats, family = "yjPower")
+summary(bc1)
+
+m.fwd.tr = lm(PTS2017 ~ yeo.johnson(PTS2016, 0.25) +
+                yeo.johnson(Age, -1) +
+                yeo.johnson(G, 1.25) +
+                yeo.johnson(WS.48, 0) +
+                yeo.johnson(DRB., 0) +
+                yeo.johnson(X3P, 0.33) +
+                yeo.johnson(X3PA, 0.5) +
+                yeo.johnson(X2P., 1) +
+                yeo.johnson(FG., 0), stats)
+
+boxCox(m.fwd.tr)
+
+m.fwd.tr.2 = lm(I(sqrt(PTS2017)) ~ yeo.johnson(PTS2016, 0.25) +
+                yeo.johnson(Age, -1) +
+                yeo.johnson(G, 1.25) +
+                yeo.johnson(WS.48, 0) +
+                yeo.johnson(DRB., 0) +
+                yeo.johnson(X3P, 0.33) +
+                yeo.johnson(X3PA, 0.5) +
+                yeo.johnson(X2P., 1) +
+                yeo.johnson(FG., 0) +
+                Pos2016, stats)
+
+plot(m.fwd.tr.2, 1)
+```
+
+<!-- ```{r} -->
+<!-- ncvTest(m.fwd.tr.2) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- residualPlots(m.fwd.tr.2) -->
+<!-- ``` -->
+
+To try to improve the model, we consider adding interactions. Specifically, we try adding a term of the form `yeo.johnson(PTS2016, 0.25)*Pos2016`. However, an `anova` analysis shows that this term should be dropped. 
+
+```{r}
+m = lm(I(sqrt(PTS2017)) ~ yeo.johnson(Age, -1) +
+                yeo.johnson(G, 1.25) +
+                yeo.johnson(WS.48, 0) +
+                yeo.johnson(DRB., 0) +
+                yeo.johnson(X3P, 0.33) +
+                yeo.johnson(X3PA, 0.5) +
+                yeo.johnson(X2P., 1) +
+                yeo.johnson(FG., 0) +
+                yeo.johnson(PTS2016, 0.25)*Pos2016, 
+       stats)
+anova(m.fwd.tr.2, m)
+```
+
+Instead, we include a quadratic term on the the regressor `yeo.johnson(PTS2016, 0.25)`. A new `anova` application shows that this term should be kept, so we include it in what will become our definitive model, `m.q`. Since this is our final model, we perform some diagnostic techniques on it. First, we draw a residual plot. Then, we perform a non-constant-variance test. And finally, we implement Tukey's test. None of these techniques finds evidence of violations of the hypothesis of linear modeling. 
+
+```{r}
+m.q = lm(I(sqrt(PTS2017)) ~ yeo.johnson(PTS2016, 0.25) +
+                yeo.johnson(Age, -1) +
+                yeo.johnson(G, 1.25) +
+                yeo.johnson(WS.48, 0) +
+                yeo.johnson(DRB., 0) +
+                yeo.johnson(X3P, 0.33) +
+                yeo.johnson(X3PA, 0.5) +
+                yeo.johnson(X2P., 1) +
+                yeo.johnson(FG., 0) +
+                I(yeo.johnson(PTS2016, 0.25)^2)+
+                Pos2016, 
+       stats)
+anova(m.fwd.tr.2, m.q)
+```
+
+```{r}
+plot(m.q,1)
+```
+
+```{r}
+ncvTest(m.q)
+```
+```{r}
+residualPlots(m.q)
+```
+
+Finally, we want to establish how robust are results are. So, we perform influence analysis. We find no evidence of outliers and only one observation, number 97, with modest Cook's distance. We proceed to remove the observation from the database and recalculate the coefficients of `m.q` in a new model that we call `m.r`. We then use `compareCoeffs` to verify that the coefficients are very close to the ones we originally obtained. From this, we conclude that our results are robust. 
+
+```{r}
+outlierTest(m.q)
+cd1=cooks.distance(m.q)
+sort(cd1, decreasing = TRUE)[1:10]
+```
+
+<!-- ```{r} -->
+<!-- influence(m.q) -->
+<!-- ``` -->
+
+
+```{r}
+stats.r = stats[-97, ]
+m.r =  lm(I(sqrt(PTS2017)) ~ yeo.johnson(PTS2016, 0.25) +
+                yeo.johnson(Age, -1) +
+                yeo.johnson(G, 1.25) +
+                yeo.johnson(WS.48, 0) +
+                yeo.johnson(DRB., 0) +
+                yeo.johnson(X3P, 0.33) +
+                yeo.johnson(X3PA, 0.5) +
+                yeo.johnson(X2P., 1) +
+                yeo.johnson(FG., 0) +
+                I(yeo.johnson(PTS2016, 0.25)^2)+
+                Pos2016, 
+       stats.r)
+
+compareCoefs(m.q, m.r)
+```
+
+
+Lastly, we analyze the results of `m.q`. We draw an effects plot of `Age`. It shows us that all other factors being held equal, there is a steady decrease in the response as `Age` increases. Going back to our research question, this suggests that younger players should be preferred over older ones. 
+
+Beyond our research question, we find other interesting insights. As shown by the effects plots below, there are also steady decreases in the response as `G`, `FG.` and `DRB.` increase. The last one of these effects can be understood by the fact that players with high `DRB.` are probably more defensive minded. But the first two ones are harder to explain. 
+
+```{r}
+plot(Effect("Age", m.q))
+```
+
+```{r}
+plot(Effect("FG.", m.q))
+```
+
+
+
+```{r}
+plot(Effect("G", m.q))
+```
+
+
+
+
+```{r}
+plot(Effect("DRB.", m.q))
+```
+
+
+
+
+
+
+
+
+
+
+<!-- So we again perform a transformation on the response, based on the recommendation provided by the `boxCox` method: -->
+
+<!-- ```{r} -->
+<!-- boxCox(m.fwd) -->
+<!-- ``` -->
+
+<!-- We should keep `PTS2016` and `PTS2017`on the same footing, so we transform both to obtain the model `m2`.  -->
+
+
+<!-- ```{r} -->
+<!-- m2 = lm(formula = basicPower(PTS2017, 1/2)~ basicPower(PTS2016, 1/2) + Age +  -->
+<!--           G + WS.48 + DRB. + X3P + X3PA + X2P. + FG. + Pos2016,  -->
+<!--     data = stats) -->
+<!-- ``` -->
+
+<!-- We could consider interactions, but after several Anova tests, none seemed significant. For instance, we reject including an interaction term of the form `basicPower(PTS2016, 1/2)*Pos2016` after we run  -->
+
+<!-- ```{r} -->
+<!-- anova(m2, lm(formula = basicPower(PTS2017, 1/2)~  -->
+<!--                basicPower(PTS2016, 1/2)*Pos2016 + Age + G + WS.48 + DRB. + -->
+<!--                X3P + X3PA + X2P. + FG., data = stats)) -->
+<!-- ``` -->
+
+
+<!-- We proceed now to perform an Anova test on `m2` to identify the really meaningful factors: -->
+
+<!-- ```{r} -->
+<!-- Anova(m2) -->
+<!-- ``` -->
+<!-- From this, we decide to drop the regressors `X3PA`, `X3P` and `Pos2016`, to obtain the more restricted model  -->
+
+<!-- ```{r} -->
+<!-- m2.res = lm(basicPower(PTS2017, 1/2)~ basicPower(PTS2016, 1/2) + Age + G +  -->
+<!--               WS.48 + DRB. + X2P. + FG., data = stats) -->
+
+<!-- summary(m2.res) -->
+<!-- ``` -->
+
+<!-- The plot of residuals is shown below: -->
+
+<!-- ```{r} -->
+<!-- plot(m2.res,1) -->
+<!-- ``` -->
+
+<!-- In particular, we see no evidence of non-constant variance or curvature, as confirmed by the tests -->
+
+
+<!-- ```{r} -->
+<!-- ncvTest(m2.res) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- residualPlots(m2.res) -->
+<!-- ``` -->
+
+<!-- Additionally, we reject the possibility of including a quadratic term on `Age` since we have: -->
+
+<!-- ```{r} -->
+<!-- anova(m2.res, lm(basicPower(PTS2017, 1/2)~ basicPower(PTS2016, 1/2) + Age +  -->
+<!--                    I(Age^2)+ G + WS.48 + DRB. + X2P. + FG., data = stats) ) -->
+<!-- ``` -->
+
+<!-- Let us now analyze the results of this model. Recall that the question we are trying to answer is: all other performance metrics fixed, would we rather sign the player with 23 or 25 years old? We can answer the question by looking at the effects plot:  -->
+
+<!-- ```{r} -->
+<!-- plot(Effect("Age", m2.res)) -->
+<!-- ``` -->
+
+<!-- It predicts that all other factors being equal, older players will produce a lower output than younger players. Morever, the decline is linear on `Age`. Roughly speaking, each additional year is associated with a decrease of 0.3 in `basicPower(PTS2016, 1/2)`. In short, you would rather sign the 23 year old.  -->
+
+
+<!-- In order to establish how robust our results are, we perform an influence analysis: -->
+<!-- ```{r} -->
+<!-- influenceIndexPlot(m2.res) -->
+<!-- ``` -->
+
+<!-- We observe only one point with noticeable large Cook's distance. However, the Cook's distance is significantly less than 1, so that point should not affect our results that much. For good measure, we recalculate the coefficients of the model without said point:  -->
+
+<!-- ```{r} -->
+<!-- stats.r = stats[-261, ] -->
+<!-- m2.res.r = lm(basicPower(PTS2017, 1/2)~ basicPower(PTS2016, 1/2) + Age + G +  -->
+<!--               WS.48 + DRB. + X2P. + FG., data = stats.r) -->
+
+<!-- summary(m2.res.r) -->
+<!-- ``` -->
+<!-- We observe very similar results.  -->
+
+<!-- In conclusion, we have seen that the answer to our research question depends on the amount of information about the players that is available. If we only have very limited amount of data, the best model for the situation would predict the 25 year old to perform better than the 23 year old.  -->
+<!-- This is in part because the model predicts the existence of a peak of performance around 27 years old, so the latter player is closer to that peak. In constrast, if we know more about the players and both of them exhibit similar metrics, a better model for that situation would predict that the 23 year old will produce a higher output. In fact, this model predicts a linear decrease of `sqrt(PTS2017)` with `Age`.  -->
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,112 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+#install.packages("astsa")
+library(astsa)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+full.data = read.csv("Seasons_Stats.csv")
+```
+
+
+
+```{r}
+pts.tm.yr = full.data %>% group_by(Tm, Year) %>% summarise(pts = sum(PTS))
+pts.tm.yr
+```
+
+
+```{r}
+pts.tm.yr$Tm = as.factor(pts.tm.yr$Tm)
+bos = pts.tm.yr %>% dplyr::filter(Tm == "BOS") %>% select(-Tm)
+bos
+```
+
+
+```{r}
+ggplot(data = bos)+
+  geom_line(mapping = aes(x = Year, y = pts))
+```
+
+```{r}
+bos = bos %>% filter(Year != 2012 & Year != 1999)
+```
+
+---------
+
+# Differentiation
+
+```{r}
+d.bos = diff(bos$pts)
+plot(d.bos)
+```
+
+```{r}
+acf(d.bos)
+```
+
+
+--------
+
+# modeling the differentiated series 
+
+```{r}
+bos.after60 = bos%>% filter(Year > 1959)
+#plot(bos.after60$pts)
+m = lm(pts ~ Year, bos.after60)
+summary(m)
+plot(m$resid)
+```
+
+
+```{r}
+acf(m$resid)
+```
+
+----
+
+# Repeating experiment with another team 
+
+```{r}
+ind = pts.tm.yr %>% dplyr::filter(Tm == "IND") %>% select(-Tm)
+
+ggplot(data = ind)+
+  geom_line(mapping = aes(x = Year, y = pts))
+
+ind = ind %>% filter(Year != 2012 & Year != 1999)
+
+m = lm(pts ~ Year, ind)
+summary(m)
+plot(m$resid)
+
+
+acf(m$resid)
+```
+
+
+
+
+```{r}
+nyk = pts.tm.yr %>% dplyr::filter(Tm == "NYK") %>% select(-Tm)
+
+ggplot(data = nyk)+
+  geom_line(mapping = aes(x = Year, y = pts))
+
+nyk = nyk %>% filter(Year != 2012 & Year != 1999)
+
+nyk = nyk %>% filter(Year > 1959)
+
+m = lm(pts ~ Year, nyk)
+summary(m)
+plot(m$resid)
+
+
+acf(m$resid)
+```
+
